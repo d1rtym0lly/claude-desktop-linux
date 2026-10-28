@@ -1,0 +1,8 @@
+# makepkg
+arch/*.deb
+arch/*.pkg.tar.*
+arch/src/
+arch/pkg/
+# nix
+result
+result-*

@@ -1,0 +1,1 @@
+../common/claude-desktop-autostart.sh

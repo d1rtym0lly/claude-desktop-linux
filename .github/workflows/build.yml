@@ -1,0 +1,104 @@
+name: Update and build
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+  schedule:
+    - cron: "17 4 * * *"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+
+jobs:
+  update:
+    if: github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    outputs:
+      changed: ${{ steps.commit.outputs.changed }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check Anthropic's apt repository
+        run: scripts/update.sh
+      - name: Commit new version
+        id: commit
+        run: |
+          if git diff --quiet; then
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit -am "Update Claude Desktop to $(jq -r .version sources.json)"
+          git push
+          echo "changed=true" >> "$GITHUB_OUTPUT"
+
+  arch:
+    needs: update
+    if: ${{ !cancelled() && (github.event_name != 'schedule' || needs.update.outputs.changed == 'true') }}
+    runs-on: ubuntu-latest
+    container: archlinux:base-devel
+    steps:
+      - run: pacman -Syu --noconfirm --needed git xorg-server-xvfb
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event_name == 'pull_request' && github.sha || github.ref_name }}
+      - name: Build package
+        run: |
+          useradd -m builder
+          echo "builder ALL=(ALL) NOPASSWD: ALL" > /etc/sudoers.d/builder
+          chown -R builder .
+          cd arch
+          sudo -u builder makepkg -s --noconfirm
+          pacman -U --noconfirm claude-desktop-*.pkg.tar.zst
+      - name: Inspect package
+        run: |
+          pacman -Ql claude-desktop | grep -v '/$' | grep -vE '/(locales|resources/app.asar.unpacked)/' | head -n 80
+          echo "--- launcher target"
+          grep '^APP=' /usr/bin/claude-desktop
+          echo "--- desktop entries"
+          grep -H -E '^(Exec|TryExec|Icon)=' /usr/share/applications/*.desktop || true
+          echo "--- Cowork paths referenced by the app"
+          find / -xdev -name app.asar -path '*claude*' -exec grep -aoE '/usr/(share|lib|libexec|bin)/[A-Za-z0-9_./-]*(OVMF|ovmf|edk2|virtiofsd|qemu-system)[A-Za-z0-9_./-]*' {} + | sort -u | head -n 40 || true
+      - name: Check shared libraries
+        run: |
+          app=$(sed -n 's/^APP="\(.*\)"$/\1/p' /usr/bin/claude-desktop)
+          dir=$(dirname "$(readlink -f "$app")")
+          missing=$(find "$dir" -type f \( -perm -u+x -o -name '*.so*' -o -name '*.node' \) -print0 |
+            xargs -0 -I{} sh -c 'ldd "{}" 2>/dev/null | grep "not found" | sed "s|^|{}: |"' | sort -u)
+          if [ -n "$missing" ]; then
+            echo "$missing"
+            exit 1
+          fi
+          echo "All shared libraries resolve"
+      - name: Smoke test
+        continue-on-error: true
+        run: |
+          set +e
+          sudo -u builder timeout 30 xvfb-run -a claude-desktop > smoke.log 2>&1
+          status=$?
+          tail -n 30 smoke.log
+          echo "exit status: $status (124 = still running after 30 s, which is fine)"
+          [ "$status" = 124 ]
+
+  nix:
+    needs: update
+    if: ${{ !cancelled() && (github.event_name != 'schedule' || needs.update.outputs.changed == 'true') }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event_name == 'pull_request' && github.sha || github.ref_name }}
+      - uses: cachix/install-nix-action@v31
+      - name: Build package
+        run: nix build .#claude-desktop -L
+      - name: Inspect package
+        run: |
+          find -L result/bin result/share/applications -maxdepth 1
+          grep '^APP=' result/bin/.claude-desktop-wrapped
+      - name: Check flake
+        run: nix flake check --no-build
