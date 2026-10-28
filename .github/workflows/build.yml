@@ -21,7 +21,7 @@ jobs:
     outputs:
       changed: ${{ steps.commit.outputs.changed }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - name: Check Anthropic's apt repository
         run: scripts/update.sh
       - name: Commit new version
@@ -44,7 +44,7 @@ jobs:
     container: archlinux:base-devel
     steps:
       - run: pacman -Syu --noconfirm --needed git xorg-server-xvfb
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         with:
           ref: ${{ github.event_name == 'pull_request' && github.sha || github.ref_name }}
       - name: Build package
@@ -57,13 +57,19 @@ jobs:
           pacman -U --noconfirm claude-desktop-*.pkg.tar.zst
       - name: Inspect package
         run: |
-          pacman -Ql claude-desktop | grep -v '/$' | grep -vE '/(locales|resources/app.asar.unpacked)/' | head -n 80
-          echo "--- launcher target"
-          grep '^APP=' /usr/bin/claude-desktop
-          echo "--- desktop entries"
-          grep -H -E '^(Exec|TryExec|Icon)=' /usr/share/applications/*.desktop || true
-          echo "--- Cowork paths referenced by the app"
-          find / -xdev -name app.asar -path '*claude*' -exec grep -aoE '/usr/(share|lib|libexec|bin)/[A-Za-z0-9_./-]*(OVMF|ovmf|edk2|virtiofsd|qemu-system)[A-Za-z0-9_./-]*' {} + | sort -u | head -n 40 || true
+          {
+            pacman -Ql claude-desktop | sed 's|^claude-desktop ||' | grep -v '/$' |
+              grep -vE '/(locales|resources/app.asar.unpacked)/' | head -n 60
+            echo "--- launcher: $(grep '^APP=' /usr/bin/claude-desktop)"
+            app=$(sed -n 's/^APP="\(.*\)"$/\1/p' /usr/bin/claude-desktop)
+            if grep -Iq . "$app" 2>/dev/null; then echo "--- official launcher script:"; head -n 30 "$app"; fi
+            echo "--- desktop entries"
+            grep -H -E '^(Exec|TryExec|Icon)=' /usr/share/applications/*.desktop || true
+            echo "--- Cowork paths referenced by the app"
+            find / -xdev -name app.asar -path '*laude*' -exec grep -aoE '/usr/(share|lib|libexec|bin)/[A-Za-z0-9_./-]*(OVMF|ovmf|edk2|virtiofsd|qemu-system)[A-Za-z0-9_./-]*' {} + | sort -u | head -n 40 || true
+          } > inspect.txt 2>&1
+          cat inspect.txt
+          .github/annotate.sh notice "Arch package contents" < inspect.txt
       - name: Check shared libraries
         run: |
           app=$(sed -n 's/^APP="\(.*\)"$/\1/p' /usr/bin/claude-desktop)
@@ -72,6 +78,7 @@ jobs:
             xargs -0 -I{} sh -c 'ldd "{}" 2>/dev/null | grep "not found" | sed "s|^|{}: |"' | sort -u)
           if [ -n "$missing" ]; then
             echo "$missing"
+            echo "$missing" | sed "s|$dir/||" | .github/annotate.sh error "Missing shared libraries"
             exit 1
           fi
           echo "All shared libraries resolve"
@@ -81,8 +88,10 @@ jobs:
           set +e
           sudo -u builder timeout 30 xvfb-run -a claude-desktop > smoke.log 2>&1
           status=$?
-          tail -n 30 smoke.log
-          echo "exit status: $status (124 = still running after 30 s, which is fine)"
+          echo "exit status: $status (124 = still running after 30 s, which is fine)" >> smoke.log
+          tail -n 40 smoke.log
+          if [ "$status" = 124 ]; then level=notice; else level=error; fi
+          tail -n 40 smoke.log | .github/annotate.sh $level "Smoke test"
           [ "$status" = 124 ]
 
   nix:
@@ -90,15 +99,24 @@ jobs:
     if: ${{ !cancelled() && (github.event_name != 'schedule' || needs.update.outputs.changed == 'true') }}
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         with:
           ref: ${{ github.event_name == 'pull_request' && github.sha || github.ref_name }}
       - uses: cachix/install-nix-action@v31
       - name: Build package
-        run: nix build .#claude-desktop -L
+        run: |
+          set -o pipefail
+          if ! nix build .#claude-desktop -L 2>&1 | tee build.log; then
+            grep -v '^warning: Git tree' build.log | tail -n 80 | .github/annotate.sh error "nix build"
+            exit 1
+          fi
       - name: Inspect package
         run: |
-          find -L result/bin result/share/applications -maxdepth 1
-          grep '^APP=' result/bin/.claude-desktop-wrapped
+          {
+            find -L result/bin result/share/applications -maxdepth 1
+            grep '^APP=' result/bin/.claude-desktop-wrapped
+          } > inspect.txt 2>&1
+          cat inspect.txt
+          .github/annotate.sh notice "Nix package contents" < inspect.txt
       - name: Check flake
         run: nix flake check --no-build
