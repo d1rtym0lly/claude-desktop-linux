@@ -13,15 +13,15 @@ arch=('x86_64' 'aarch64')
 url="https://claude.ai/download"
 license=('LicenseRef-Anthropic-Commercial')
 depends=(
-  'alsa-lib' 'at-spi2-core' 'gtk3' 'libcups' 'libdrm' 'libnotify'
-  'libpipewire' 'libsecret' 'libxkbcommon' 'mesa' 'nss' 'xdg-utils'
+  'alsa-lib' 'at-spi2-core' 'gtk3' 'libcap-ng' 'libcups' 'libdrm'
+  'libnotify' 'libpipewire' 'libseccomp' 'libsecret' 'libxkbcommon' 'mesa'
+  'nss' 'xdg-utils'
 )
 optdepends=(
   'gnome-keyring: keep the sign-in outside KDE (or any other Secret Service provider)'
   'kwallet: keep the sign-in on KDE Plasma'
   'qemu-base: Cowork virtual machine'
   'edk2-ovmf: UEFI firmware for the Cowork virtual machine'
-  'virtiofsd: file sharing with the Cowork virtual machine'
 )
 options=('!strip' '!debug')
 
@@ -73,6 +73,20 @@ package() {
   sed "s|@APP@|$app|" "$srcdir/claude-desktop-launcher.sh" > launcher
   install -Dm755 launcher "$pkgdir/usr/bin/claude-desktop"
   install -Dm755 "$srcdir/claude-desktop-autostart.sh" "$pkgdir/usr/bin/claude-desktop-autostart"
+
+  # Cowork looks for QEMU parts at Debian paths only:
+  #   firmware  /usr/share/OVMF/OVMF_CODE_4M.fd  (Arch: /usr/share/OVMF -> edk2,
+  #             file is x64/OVMF_CODE.4m.fd from edk2-ovmf)
+  #   virtiofsd /usr/libexec/virtiofsd or /usr/bin/virtiofsd (the app ships one)
+  if [[ $CARCH == x86_64 ]]; then
+    install -d "$pkgdir/usr/share/edk2"
+    ln -s x64/OVMF_CODE.4m.fd "$pkgdir/usr/share/edk2/OVMF_CODE_4M.fd"
+  fi
+  local virtiofsd
+  virtiofsd="$(dirname "$app")/resources/virtiofsd"
+  if [[ -x $pkgdir$virtiofsd ]]; then
+    ln -s "$virtiofsd" "$pkgdir/usr/bin/virtiofsd"
+  fi
 
   # Desktop entries must go through the launcher too.
   local entry
