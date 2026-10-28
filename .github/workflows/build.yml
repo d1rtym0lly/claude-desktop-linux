@@ -70,6 +70,20 @@ jobs:
           } > inspect.txt 2>&1
           cat inspect.txt
           .github/annotate.sh notice "Arch package contents" < inspect.txt
+      - name: Probe Cowork firmware paths
+        continue-on-error: true
+        run: |
+          pacman -S --noconfirm --needed qemu-base edk2-ovmf virtiofsd > /dev/null
+          {
+            echo "--- OVMF-like files on Arch"
+            find /usr/share -iname '*ovmf*code*' -o -iname '*edk2*code*' | sort | head -n 30
+            ls -la /usr/share/OVMF 2>&1 | head
+            echo "--- qemu/virtiofsd"
+            ls -la /usr/bin/qemu-system-x86_64 /usr/lib/virtiofsd /usr/libexec/virtiofsd /usr/bin/virtiofsd 2>&1
+            echo "--- how the app looks for firmware"
+            find / -xdev -name app.asar -path '*laude*' -exec grep -aoE '.{0,160}OVMF_CODE_4M\.fd.{0,160}' {} + | head -n 3
+          } > probe.txt 2>&1
+          .github/annotate.sh notice "Cowork probe" < probe.txt
       - name: Check shared libraries
         run: |
           app=$(sed -n 's/^APP="\(.*\)"$/\1/p' /usr/bin/claude-desktop)
@@ -107,7 +121,7 @@ jobs:
         run: |
           set -o pipefail
           if ! nix build .#claude-desktop -L 2>&1 | tee build.log; then
-            grep -v '^warning: Git tree' build.log | tail -n 80 | .github/annotate.sh error "nix build"
+            { grep -E 'not found|error' build.log | sort -u | head -n 40; echo ---; tail -n 15 build.log; } | .github/annotate.sh error "nix build"
             exit 1
           fi
       - name: Inspect package

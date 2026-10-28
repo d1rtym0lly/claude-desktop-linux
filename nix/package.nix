@@ -16,16 +16,19 @@
   expat,
   glib,
   gtk3,
+  libcap_ng,
   libdrm,
   libgbm,
   libGL,
   libnotify,
   libpulseaudio,
+  libseccomp,
   libsecret,
   libxkbcommon,
   nspr,
   nss,
   pango,
+  pipewire,
   systemd,
   vulkan-loader,
   xdg-utils,
@@ -85,12 +88,15 @@ stdenv.mkDerivation {
     expat
     glib
     gtk3
+    libcap_ng
     libdrm
     libgbm
+    libseccomp
     libxkbcommon
     nspr
     nss
     pango
+    pipewire
     libx11
     libxcomposite
     libxdamage

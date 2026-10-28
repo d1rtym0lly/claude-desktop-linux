@@ -14,7 +14,7 @@ url="https://claude.ai/download"
 license=('LicenseRef-Anthropic-Commercial')
 depends=(
   'alsa-lib' 'at-spi2-core' 'gtk3' 'libcups' 'libdrm' 'libnotify'
-  'libsecret' 'libxkbcommon' 'mesa' 'nss' 'xdg-utils'
+  'libpipewire' 'libsecret' 'libxkbcommon' 'mesa' 'nss' 'xdg-utils'
 )
 optdepends=(
   'gnome-keyring: keep the sign-in outside KDE (or any other Secret Service provider)'
