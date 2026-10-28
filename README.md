@@ -1,48 +1,123 @@
-# Claude Desktop для Arch Linux, CachyOS и NixOS
+<div align="center">
 
-Сборка **официального** приложения Claude Desktop (Chat, Cowork и Claude Code в одном окне) для дистрибутивов, которые Anthropic пока официально не поддерживает.
+# Claude Desktop for Arch Linux, CachyOS & NixOS
 
-Anthropic выпускает Linux-версию (бета) только как `.deb` для Ubuntu и Debian. Этот репозиторий берёт этот `.deb` прямо с серверов Anthropic и превращает его в нативный пакет:
+**The official Claude desktop app with Chat, Cowork and Claude Code, packaged for distributions Anthropic doesn't ship to yet.**
 
-| Дистрибутив | Как устанавливается | Обновления |
-|---|---|---|
-| Arch Linux | `PKGBUILD` → пакет pacman | `git pull && makepkg -si` |
-| CachyOS, EndeavourOS, Manjaro и другие на базе Arch | тот же `PKGBUILD` | так же |
-| NixOS (и Nix на любом Linux) | flake: пакет, overlay, NixOS-модуль | `nix flake update` |
+[![Build](https://github.com/d1rtym0lly/claude-desktop-linux/actions/workflows/build.yml/badge.svg)](https://github.com/d1rtym0lly/claude-desktop-linux/actions/workflows/build.yml)
+[![Claude Desktop](https://img.shields.io/badge/dynamic/json?url=https%3A%2F%2Fraw.githubusercontent.com%2Fd1rtym0lly%2Fclaude-desktop-linux%2Fmain%2Fsources.json&query=%24.version&label=Claude%20Desktop&color=d97757)](sources.json)
+![Arch Linux](https://img.shields.io/badge/Arch_Linux-1793D1?logo=archlinux&logoColor=white)
+![CachyOS](https://img.shields.io/badge/CachyOS-00AA88)
+![NixOS](https://img.shields.io/badge/NixOS-5277C3?logo=nixos&logoColor=white)
+![x86_64 | aarch64](https://img.shields.io/badge/arch-x86__64%20%7C%20aarch64-555)
 
-Архитектуры: `x86_64` и `aarch64`.
+**English** · [Русский](README.ru.md)
 
-> **Неофициально.** Проект не связан с Anthropic. Приложение Claude Desktop закрытое, и здесь его **нет**: в репозитории только скрипты сборки, а само приложение скачивается с `downloads.claude.ai` во время сборки, и его контрольная сумма проверяется. Так же устроены пакеты в AUR.
+</div>
 
 ---
 
-## Установка
+Anthropic publishes the Linux desktop app (beta) only as a `.deb` for Ubuntu and Debian. This repository turns that exact `.deb` into a native package for your system. The app itself is not changed; the package only adds what Arch, CachyOS and NixOS need to run it properly.
 
-### Arch Linux и CachyOS
+> [!NOTE]
+> This is an **unofficial** community project and is not affiliated with Anthropic. Claude Desktop is proprietary, so it is **not** stored in this repository: it is downloaded from Anthropic's own server (`downloads.claude.ai`) while you build, and its SHA-256 checksum is verified. AUR packages work the same way.
+
+## Contents
+
+- [Quick start](#quick-start)
+- [What you get](#what-you-get)
+- [Step-by-step: Arch Linux / CachyOS](#step-by-step-arch-linux--cachyos)
+- [NixOS](#nixos)
+- [Cowork setup](#cowork-setup)
+- [Faster start and settings](#faster-start-and-settings)
+- [Updating and removing](#updating-and-removing)
+- [Troubleshooting](#troubleshooting)
+- [How it works](#how-it-works)
+- [FAQ](#faq)
+
+## Quick start
+
+**Arch Linux, CachyOS, EndeavourOS, Manjaro:**
+
+```bash
+sudo pacman -S --needed git base-devel
+git clone https://github.com/d1rtym0lly/claude-desktop-linux.git
+cd claude-desktop-linux/arch && makepkg -si
+```
+
+**NixOS:** try it without installing:
+
+```bash
+nix run github:d1rtym0lly/claude-desktop-linux
+```
+
+To install it for good, see [NixOS](#nixos).
+
+Then open **Claude** from your app menu and sign in.
+
+## What you get
+
+| | |
+|---|---|
+| 🖥️ **The real app** | Anthropic's own build, the same one Ubuntu users get: Chat, Cowork, Claude Code, parallel sessions, diff review, terminal |
+| 🔑 **Sign-in that sticks** | On Hyprland, Sway, niri, i3 and similar, plain Electron forgets your login on every start. The launcher points it at your keyring. |
+| 🪟 **Native Wayland** | Sharp text with fractional scaling, no XWayland |
+| ⚡ **Instant open** | Optional autostart: the app is already running, so opening it just shows the window |
+| 🧪 **Cowork works** | Links QEMU, UEFI firmware and virtiofsd to the paths the app expects (it only knows Debian's) |
+| 🔄 **Always current** | A daily GitHub Action checks Anthropic's repository and updates the version and checksums |
+| ✅ **Tested on every change** | CI builds and installs the Arch package, checks every shared library, launches the app, and builds the Nix package |
+
+## Step-by-step: Arch Linux / CachyOS
+
+<details open>
+<summary><b>1. Install the build tools</b></summary>
+
+```bash
+sudo pacman -S --needed git base-devel
+```
+
+`git` downloads this repository, and `base-devel` provides `makepkg`, the standard Arch tool for building packages.
+</details>
+
+<details open>
+<summary><b>2. Download this repository</b></summary>
 
 ```bash
 git clone https://github.com/d1rtym0lly/claude-desktop-linux.git
 cd claude-desktop-linux/arch
+```
+</details>
+
+<details open>
+<summary><b>3. Build and install</b></summary>
+
+```bash
 makepkg -si
 ```
 
-`makepkg` скачает официальный `.deb`, сверит SHA-256 из индекса apt-репозитория Anthropic, соберёт пакет `claude-desktop` и установит его через pacman. Удаление: `sudo pacman -R claude-desktop`.
+What happens: `makepkg` downloads the official `.deb` (~160 MB), checks its checksum, builds a `claude-desktop` package and asks for your password to install it and its dependencies with pacman.
 
-Если раньше ты собирал пакет вручную (через `debtap` или свой PKGBUILD с тем же именем `claude-desktop`), он просто заменится.
+If you already installed Claude Desktop by hand (with `debtap` or your own PKGBUILD), the new package simply replaces it.
+</details>
 
-**Обновление:**
+<details open>
+<summary><b>4. Sign in so it stays signed in</b></summary>
+
+The app stores your login in the system keyring. KDE Plasma (KWallet) and GNOME (GNOME Keyring) already have one. On any other desktop install one:
 
 ```bash
-cd claude-desktop-linux && git pull && cd arch && makepkg -si
+sudo pacman -S gnome-keyring
 ```
 
-Новую версию в репозитории каждый день проверяет GitHub Actions (см. «Как это работает»), поэтому `git pull` сразу приносит свежую версию и её контрольные суммы.
+Then start **Claude** from the app menu (or run `claude-desktop`) and sign in with your Claude account.
+</details>
 
-### NixOS (flake)
+## NixOS
 
-`flake.nix` системы:
+Add the flake to your system configuration:
 
 ```nix
+# flake.nix
 {
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
@@ -58,8 +133,7 @@ cd claude-desktop-linux && git pull && cd arch && makepkg -si
         claude-desktop.nixosModules.default
         {
           programs.claude-desktop.enable = true;
-          # Для Cowork пользователь должен быть в группе kvm:
-          users.users.gleb.extraGroups = [ "kvm" ];
+          users.users.YOUR_USER.extraGroups = [ "kvm" ];  # for Cowork
         }
       ];
     };
@@ -67,163 +141,189 @@ cd claude-desktop-linux && git pull && cd arch && makepkg -si
 }
 ```
 
-Модуль `programs.claude-desktop` делает следующее:
+Then run `sudo nixos-rebuild switch`.
 
-- ставит приложение;
-- при `cowork.enable = true` (по умолчанию) ставит QEMU и `virtiofsd` и загружает модуль ядра `vhost_vsock`;
-- включает `gnome-keyring`, чтобы вход сохранялся (`mkDefault`, можно переопределить);
-- включает `nix-ld`: Claude Code внутри приложения запускает готовые Linux-бинарники, а на NixOS они без `nix-ld` не стартуют.
+`programs.claude-desktop.enable` does the following:
 
-Другие варианты:
+- installs the app;
+- turns on `gnome-keyring` so the sign-in is kept;
+- turns on `nix-ld`, because Claude Code inside the app runs prebuilt Linux binaries;
+- with `cowork.enable = true` (the default), installs QEMU, OVMF and virtiofsd, links them at `/usr/bin` and `/usr/share/OVMF` where Cowork looks for them, and loads `vhost_vsock`.
+
+<details>
+<summary>Other ways: profile install, overlay</summary>
 
 ```bash
-# запустить без установки
-nix run github:d1rtym0lly/claude-desktop-linux
-# поставить в профиль (Nix на любом дистрибутиве)
+# Any Linux with Nix
 nix profile install github:d1rtym0lly/claude-desktop-linux
 ```
 
-Ещё есть `overlays.default`, который добавляет `pkgs.claude-desktop`. Через overlay пакет собирается из твоего `nixpkgs`, поэтому там нужно разрешить несвободный пакет: `nixpkgs.config.allowUnfreePredicate = p: lib.getName p == "claude-desktop";`.
-
----
-
-## Что оптимизировано
-
-Официальный `.deb` рассчитан на Ubuntu с GNOME. На других системах есть типичные проблемы, и сборка их исправляет:
-
-| Проблема | Что делает сборка |
-|---|---|
-| **На Hyprland, Sway, niri, i3 и подобных при каждом запуске приходится заново входить в аккаунт.** Electron находит хранилище паролей только в GNOME и KDE, в остальных средах сессия не сохраняется. | Лаунчер определяет рабочий стол и, если это не GNOME или KDE, передаёт `--password-store=gnome-libsecret`. Вход сохраняется в `gnome-keyring` (или в любом другом Secret Service, например KeePassXC). |
-| В Wayland-сессии приложение может работать через XWayland: размыто при масштабировании и медленнее. | В Wayland приложение запускается нативно: `--ozone-platform-hint=auto`, декорации окон, IME. Отключается через `CLAUDE_NO_WAYLAND=1`. |
-| Каждый раз нужно ждать холодного старта. | `claude-desktop-autostart on` запускает приложение при входе в систему. После этого открытие из меню только поднимает уже запущенное окно, и это происходит мгновенно. |
-| Своих флагов Chromium/Electron не передать. | Файл `~/.config/claude-desktop-flags.conf`, по одному флагу на строку (как у `code-flags.conf` в Arch). |
-| `.deb` прописывает apt-репозиторий и ключ, а на Arch и NixOS они не нужны. | Удаляются: `/etc/apt`, `/etc/default`, `/usr/share/keyrings`. |
-| На NixOS бинарники ищут библиотеки в `/usr/lib`. | `autoPatchelfHook` прописывает пути к библиотекам из Nix store, а библиотеки, загружаемые через `dlopen` (libGL, Vulkan, libsecret, libnotify, PulseAudio, udev), добавляются через `LD_LIBRARY_PATH`. |
-
-Само приложение не изменяется: файлы Anthropic остаются как есть, меняется только способ их запуска.
-
-### Настройки лаунчера
-
-```bash
-# автозапуск при входе в систему
-claude-desktop-autostart on      # off / status
-
-# свои флаги
-cat > ~/.config/claude-desktop-flags.conf <<'EOF'
-# по одному флагу на строку, # — комментарий
---disable-gpu
-EOF
+```nix
+# Overlay: adds pkgs.claude-desktop built from *your* nixpkgs
+nixpkgs.overlays = [ claude-desktop.overlays.default ];
+nixpkgs.config.allowUnfreePredicate = p: lib.getName p == "claude-desktop";
 ```
 
-| Переменная | Что делает |
-|---|---|
-| `CLAUDE_PASSWORD_STORE=kwallet6` | принудительно задать хранилище паролей (`gnome-libsecret`, `kwallet5`, `kwallet6`, `basic`) |
-| `CLAUDE_NO_WAYLAND=1` | запускать через XWayland (если на NVIDIA или с Wayland есть артефакты) |
-| `CLAUDE_LAUNCHER_DEBUG=1` | вывести в терминал итоговую команду запуска |
+Without the module, Cowork won't find QEMU (NixOS has no `/usr/bin`), and Claude Code needs `programs.nix-ld.enable = true;`.
+</details>
 
----
+## Cowork setup
 
-## Cowork (виртуальная машина)
-
-Cowork запускает задачи в виртуальной машине QEMU/KVM. На Arch и CachyOS:
+Cowork runs tasks inside a small virtual machine. On NixOS the module above handles it. On Arch and CachyOS:
 
 ```bash
-sudo pacman -S --needed qemu-base edk2-ovmf virtiofsd
+sudo pacman -S --needed qemu-base edk2-ovmf
 sudo usermod -aG kvm $USER
 echo vhost_vsock | sudo tee /etc/modules-load.d/vhost_vsock.conf
 sudo modprobe vhost_vsock
 ```
 
-После этого выйди из системы и зайди снова. На NixOS всё это, кроме группы `kvm`, делает модуль. Аппаратная виртуализация (VT-x или AMD-V) должна быть включена в BIOS/UEFI.
+Then **log out and back in** so the group change takes effect. Hardware virtualization (Intel VT-x / AMD-V) must be enabled in your BIOS/UEFI.
 
-> Cowork на Arch проверен меньше всего. Приложение рассчитано на пути Debian (`/usr/share/OVMF/…`, `/usr/libexec/virtiofsd`), а в Arch они другие. Если Cowork пишет, что не нашёл QEMU или прошивку, см. «Решение проблем».
+The package already provides the paths Cowork expects: `/usr/share/OVMF/OVMF_CODE_4M.fd` (linked to Arch's `edk2-ovmf` firmware) and `/usr/bin/virtiofsd` (the one shipped inside the app).
 
----
+## Faster start and settings
 
-## Как это работает
-
-```
-downloads.claude.ai (официальный apt-репозиторий Anthropic)
- ├─ dists/stable/main/binary-*/Packages   ← версия и SHA-256
- └─ pool/main/c/claude-desktop/*.deb      ← само приложение
-        │
-        ├─ scripts/update.sh  (каждый день в GitHub Actions)
-        │     читает индекс → обновляет arch/PKGBUILD и sources.json → коммит
-        │
-        ├─ arch/PKGBUILD   (makepkg на твоём компьютере)
-        │     скачивает .deb → проверяет SHA-256 → распаковывает data.tar
-        │     → убирает apt-файлы → ставит лаунчер перед /usr/bin/claude-desktop
-        │     → направляет .desktop-файлы через лаунчер → пакет pacman
-        │
-        └─ nix/package.nix   (nix build)
-              fetchurl по sources.json → dpkg-deb → autoPatchelf
-              → тот же лаунчер + обёртка с LD_LIBRARY_PATH/GSettings
-```
-
-**Лаунчер** (`common/claude-desktop-launcher.sh`) — это небольшой bash-скрипт, который устанавливается как `/usr/bin/claude-desktop`. Официальную точку входа из `.deb` он не заменяет, а запускает её (`exec`) с подобранными флагами. Поэтому, если Anthropic что-то поменяет внутри приложения, сборка продолжит работать.
-
-**CI** (`.github/workflows/build.yml`) на каждый push и при выходе новой версии:
-
-1. собирает пакет в контейнере `archlinux:base-devel` и устанавливает его;
-2. проверяет через `ldd`, что все библиотеки находятся (если нет, в `depends` чего-то не хватает);
-3. запускает приложение в Xvfb на 30 секунд (smoke-тест);
-4. собирает Nix-пакет (`autoPatchelf` упадёт, если какой-то библиотеки нет) и проверяет flake.
-
-Готовые бинарные пакеты CI **не публикует**: это означало бы распространять закрытое приложение.
-
-### Структура
-
-```
-arch/PKGBUILD                     сборка для Arch / CachyOS
-common/claude-desktop-launcher.sh лаунчер (общий для Arch и Nix)
-common/claude-desktop-autostart.sh  включение и выключение автозапуска
-nix/package.nix                   Nix-деривация
-nix/module.nix                    NixOS-модуль programs.claude-desktop
-flake.nix                         flake: packages, overlay, nixosModules
-sources.json                      версия, URL и SHA-256 для Nix
-scripts/update.sh                 обновление версии из индекса Anthropic
-.github/workflows/build.yml       автообновление и проверочные сборки
-```
-
-### Что использовалось
-
-- официальный Claude Desktop `.deb` и apt-индекс Anthropic: https://code.claude.com/docs/en/desktop-linux
-- `makepkg`/`pacman`, `bsdtar` (libarchive) для распаковки `.deb`
-- Nix: `stdenv.mkDerivation`, `dpkg`, `autoPatchelfHook`, `wrapGAppsHook3`, `makeWrapper`
-- GitHub Actions: `archlinux:base-devel`, `cachix/install-nix-action`, Xvfb
-- флаги Electron/Chromium: `--password-store`, `--ozone-platform-hint`, `--enable-features=WaylandWindowDecorations`, `--enable-wayland-ime`
-
----
-
-## Решение проблем
-
-**Вход не сохраняется.** Поставь хранилище паролей: `sudo pacman -S gnome-keyring` (вне KDE) или `kwallet` (KDE). В оконных менеджерах без своей сессии (Hyprland, Sway, i3) хранилище нужно запускать самостоятельно, например `exec-once = gnome-keyring-daemon --start --components=secrets` для Hyprland. Проверить, что получает приложение: `CLAUDE_LAUNCHER_DEBUG=1 claude-desktop`.
-
-**Чёрное окно или артефакты (часто на NVIDIA).** Попробуй `CLAUDE_NO_WAYLAND=1 claude-desktop` или добавь `--disable-gpu` в `~/.config/claude-desktop-flags.conf`.
-
-**Cowork не находит QEMU или прошивку UEFI (Arch).** Посмотри, какой путь указан в сообщении, и создай ссылку на файл Arch. Например, для прошивки:
 ```bash
-sudo mkdir -p /usr/share/OVMF
-sudo ln -s /usr/share/edk2/x64/OVMF_CODE.4m.fd /usr/share/OVMF/OVMF_CODE_4M.fd
+claude-desktop-autostart on     # start at login (off / status)
 ```
-и для `virtiofsd`:
+
+Once Claude is running in the background, opening it from the menu is instant.
+
+**Custom Electron/Chromium flags** go in `~/.config/claude-desktop-flags.conf`, one per line:
+
+```
+# lines starting with # are ignored
+--disable-gpu
+```
+
+**Environment variables:**
+
+| Variable | Effect |
+|---|---|
+| `CLAUDE_PASSWORD_STORE=kwallet6` | Force a keyring backend: `gnome-libsecret`, `kwallet5`, `kwallet6`, `basic` |
+| `CLAUDE_NO_WAYLAND=1` | Run through XWayland (try this for NVIDIA glitches) |
+| `CLAUDE_LAUNCHER_DEBUG=1` | Print the exact command the launcher runs |
+
+## Updating and removing
+
+**Arch / CachyOS:**
+
 ```bash
-sudo mkdir -p /usr/libexec && sudo ln -s /usr/lib/virtiofsd /usr/libexec/virtiofsd
+cd claude-desktop-linux && git pull && cd arch && makepkg -si   # update
+sudo pacman -R claude-desktop                                    # remove
 ```
-Если поможет, создай issue, и это добавят в пакет.
 
-**`makepkg`: «The .deb has no /usr/bin/claude-desktop».** Anthropic поменяла структуру пакета. Создай issue.
+The repository is updated automatically when Anthropic releases a new version, so `git pull` always gets you the newest one.
 
-**Claude Code внутри приложения не запускается на NixOS.** Нужен `programs.nix-ld.enable = true;` (модуль включает его по умолчанию).
+**NixOS:** `nix flake update claude-desktop && sudo nixos-rebuild switch`.
 
----
+## Troubleshooting
 
-## Что проверено, а что нет
+<details>
+<summary><b>I have to sign in every time</b></summary>
 
-- Логика PKGBUILD и Nix-деривации проверена на тестовых `.deb` с тремя вариантами устройства точки входа (абсолютная ссылка, относительная ссылка, скрипт). NixOS-модуль проверен на nixos-unstable, пакет вычисляется на nixos-25.11 и unstable.
-- Сборки из настоящего `.deb` выполняет CI, их результат виден во вкладке Actions.
-- На реальном железе проверена только ручная установка того же `.deb` на Arch. Cowork на Arch и NixOS и запуск на aarch64 пока не проверялись.
+You need a running keyring (Secret Service):
 
-## Лицензия
+- **KDE:** install `kwallet`.
+- **Anything else:** install `gnome-keyring`.
+- **Hyprland / Sway / i3** don't start it for you. Add it to your config, e.g. for Hyprland: `exec-once = gnome-keyring-daemon --start --components=secrets`.
 
-Скрипты в репозитории распространяются под лицензией MIT (см. `LICENSE`). Claude Desktop — собственность Anthropic, его использование регулируется условиями Anthropic.
+Check what the app receives: `CLAUDE_LAUNCHER_DEBUG=1 claude-desktop`.
+</details>
+
+<details>
+<summary><b>Black window, flickering or glitches (often NVIDIA)</b></summary>
+
+Try `CLAUDE_NO_WAYLAND=1 claude-desktop`. If that helps, make it permanent, or add `--disable-gpu` to `~/.config/claude-desktop-flags.conf`.
+</details>
+
+<details>
+<summary><b>Cowork says it needs QEMU / KVM / virtualization</b></summary>
+
+1. `ls /dev/kvm` should exist. If it doesn't, enable VT-x/AMD-V in BIOS.
+2. `groups` should list `kvm`. If it doesn't, run `sudo usermod -aG kvm $USER` and log in again.
+3. `lsmod | grep vhost_vsock` should print something. If it doesn't, run `sudo modprobe vhost_vsock`.
+4. `ls -L /usr/share/OVMF/OVMF_CODE_4M.fd` should succeed. If it doesn't, install `edk2-ovmf`.
+5. Restart the app after any change.
+</details>
+
+<details>
+<summary><b>makepkg: "The .deb has no /usr/bin/claude-desktop"</b></summary>
+
+Anthropic changed how the package is laid out. Please [open an issue](https://github.com/d1rtym0lly/claude-desktop-linux/issues).
+</details>
+
+<details>
+<summary><b>makepkg: checksum validation failed</b></summary>
+
+Anthropic probably released a new version a moment ago. Run `git pull` and try again; the automatic update usually lands within a day.
+</details>
+
+<details>
+<summary><b>Claude Code inside the app doesn't start (NixOS)</b></summary>
+
+Enable `programs.nix-ld.enable = true;` (the module does this by default).
+</details>
+
+## How it works
+
+```mermaid
+flowchart LR
+    A["Anthropic apt repository<br/>downloads.claude.ai"] -->|"version + SHA-256<br/>(daily GitHub Action)"| B["arch/PKGBUILD<br/>sources.json"]
+    A -->|".deb"| C["makepkg"]
+    A -->|".deb"| D["nix build"]
+    B --> C
+    B --> D
+    C --> E["pacman package<br/>+ launcher + Cowork links"]
+    D --> F["Nix package<br/>patched for /nix/store"]
+```
+
+- **`scripts/update.sh`** reads Anthropic's `Packages` index, which lists the version and SHA-256 of each release, and writes them into `arch/PKGBUILD` and `sources.json`. GitHub Actions runs it daily and commits any change.
+- **`arch/PKGBUILD`** unpacks the `.deb`, removes Debian-only files (apt source, signing key), adds the launcher and the Cowork links, and routes the app's menu entries through the launcher.
+- **`nix/package.nix`** does the same for Nix. `autoPatchelfHook` points every binary at libraries in `/nix/store`, and libraries the app loads at runtime (GL, Vulkan, PipeWire, libsecret…) are added to `LD_LIBRARY_PATH`.
+- **`common/claude-desktop-launcher.sh`** is installed as `claude-desktop`. It picks the keyring backend and Wayland flags for your session, reads your flags file, then starts Anthropic's binary unchanged.
+
+<details>
+<summary>Repository layout</summary>
+
+```
+arch/PKGBUILD                       Arch / CachyOS package
+common/claude-desktop-launcher.sh   launcher (shared by Arch and Nix)
+common/claude-desktop-autostart.sh  autostart on/off helper
+nix/package.nix                     Nix package
+nix/module.nix                      NixOS module (programs.claude-desktop)
+flake.nix                           flake: packages, overlay, nixosModules
+sources.json                        version, URLs and hashes for Nix
+scripts/update.sh                   version updater
+.github/workflows/build.yml         daily update + test builds
+```
+</details>
+
+<details>
+<summary>What is tested, and what isn't yet</summary>
+
+On every change, CI:
+
+- builds the Arch package from the real `.deb` in an `archlinux` container and installs it;
+- checks every binary and native module with `ldd`, failing if any library is missing;
+- launches the app under Xvfb and checks that it is still running after 30 s;
+- checks that Cowork's QEMU, firmware and virtiofsd paths resolve;
+- builds the Nix package (`autoPatchelf` fails on any missing library) and evaluates the flake.
+
+Not tested by CI: real Cowork sessions (CI has no KVM), aarch64, and the NixOS module on real hardware.
+</details>
+
+## FAQ
+
+**Is this official?** No. It's a community package of the official app. Anthropic officially supports Ubuntu 22.04+ and Debian 12+.
+
+**Is it safe?** Every file of the app comes from `downloads.claude.ai` and is checked against the checksum Anthropic publishes. Everything this repository adds is short shell and Nix code you can read in a few minutes.
+
+**Why isn't there a ready-made package to download?** Claude Desktop is proprietary, and redistributing it isn't allowed. Building it locally from Anthropic's download avoids that.
+
+**What isn't in the Linux beta?** Computer Use and voice dictation. These are limits of Anthropic's Linux build, not of this package.
+
+## License
+
+The packaging scripts are [MIT](LICENSE). Claude Desktop itself is proprietary software by Anthropic, used under [Anthropic's terms](https://www.anthropic.com/legal).

@@ -70,25 +70,9 @@ jobs:
           } > inspect.txt 2>&1
           cat inspect.txt
           .github/annotate.sh notice "Arch package contents" < inspect.txt
-      - name: Probe Cowork firmware paths
-        continue-on-error: true
-        run: |
-          set +e
-          pacman -S --noconfirm --needed qemu-base edk2-ovmf virtiofsd > /dev/null
-          {
-            echo "--- OVMF-like files on Arch"
-            find /usr/share -iname '*ovmf*code*' -o -iname '*edk2*code*' | sort | head -n 30
-            ls -la /usr/share/OVMF 2>&1 | head
-            echo "--- qemu/virtiofsd"
-            ls -la /usr/bin/qemu-system-x86_64 /usr/lib/virtiofsd /usr/libexec/virtiofsd /usr/bin/virtiofsd 2>&1
-            echo "--- how the app looks for firmware"
-            find / -xdev -name app.asar -path '*laude*' -exec grep -aoE '.{0,300}OVMF_CODE_4M\.fd.{0,300}' {} + | head -n 3
-            echo "--- VARS / other firmware names"
-            find / -xdev -name app.asar -path '*laude*' -exec grep -aoE '[A-Za-z0-9_./-]*(OVMF_VARS|AAVMF|QEMU_EFI|edk2-)[A-Za-z0-9_./-]*' {} + | sort -u | head -n 20
-          } > probe.txt 2>&1
-          .github/annotate.sh notice "Cowork probe" < probe.txt
       - name: Check Cowork paths
         run: |
+          pacman -S --noconfirm --needed qemu-base edk2-ovmf > /dev/null
           for f in /usr/bin/qemu-system-x86_64 /usr/share/OVMF/OVMF_CODE_4M.fd /usr/bin/virtiofsd; do
             if [ -e "$f" ]; then echo "ok: $f -> $(readlink -f "$f")"; else echo "MISSING: $f"; fail=1; fi
           done > cowork.txt
