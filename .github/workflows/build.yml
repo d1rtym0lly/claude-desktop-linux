@@ -73,6 +73,7 @@ jobs:
       - name: Probe Cowork firmware paths
         continue-on-error: true
         run: |
+          set +e
           pacman -S --noconfirm --needed qemu-base edk2-ovmf virtiofsd > /dev/null
           {
             echo "--- OVMF-like files on Arch"
@@ -100,7 +101,8 @@ jobs:
         continue-on-error: true
         run: |
           set +e
-          sudo -u builder timeout 30 xvfb-run -a claude-desktop > smoke.log 2>&1
+          # Containers can't create the namespaces Chromium's sandbox needs.
+          sudo -u builder timeout 30 xvfb-run -a claude-desktop --no-sandbox > smoke.log 2>&1
           status=$?
           echo "exit status: $status (124 = still running after 30 s, which is fine)" >> smoke.log
           tail -n 40 smoke.log
